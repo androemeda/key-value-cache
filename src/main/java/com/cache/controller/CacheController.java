@@ -11,6 +11,11 @@ import org.springframework.web.bind.annotation.*;
 public class CacheController {
 
     private final CacheService cacheService;
+    
+    // Pre-create common responses to avoid object creation during requests
+    private static final CacheResponse KEY_NOT_FOUND_RESPONSE = CacheResponse.error("Key not found.");
+    private static final CacheResponse SUCCESS_PUT_RESPONSE = CacheResponse.success("Key inserted/updated successfully.");
+    private static final CacheResponse INVALID_KEY_VALUE_RESPONSE = CacheResponse.error("Key or value exceeds maximum length of 256 characters");
 
     @Autowired
     public CacheController(CacheService cacheService) {
@@ -28,10 +33,10 @@ public class CacheController {
             boolean success = cacheService.put(request.getKey(), request.getValue());
             
             if (success) {
-                return ResponseEntity.ok(CacheResponse.success("Key inserted/updated successfully." , request.getKey() , request.getValue()));
+                return ResponseEntity.ok(SUCCESS_PUT_RESPONSE);
             } else {
                 return ResponseEntity.badRequest()
-                        .body(CacheResponse.error("Key or value exceeds maximum length of 256 characters"));
+                        .body(INVALID_KEY_VALUE_RESPONSE);
             }
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
@@ -47,7 +52,7 @@ public class CacheController {
             if (value != null) {
                 return ResponseEntity.ok(CacheResponse.success(key, value));
             } else {
-                return ResponseEntity.ok(CacheResponse.error("Key not found."));
+                return ResponseEntity.ok(KEY_NOT_FOUND_RESPONSE);
             }
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
