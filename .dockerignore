@@ -1,0 +1,7 @@
+# .dockerignore
+.git
+.gitignore
+target/*
+!target/key-value-cache-1.0.0.jar
+.idea
+*.iml
