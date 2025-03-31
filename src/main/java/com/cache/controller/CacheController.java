@@ -7,19 +7,35 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 @RestController
 public class CacheController {
 
     private final CacheService cacheService;
     
-    // Pre-create common responses to avoid object creation during requests
-    private static final CacheResponse KEY_NOT_FOUND_RESPONSE = CacheResponse.error("Key not found.");
-    private static final CacheResponse SUCCESS_PUT_RESPONSE = CacheResponse.success("Key inserted/updated successfully.");
-    private static final CacheResponse INVALID_KEY_VALUE_RESPONSE = CacheResponse.error("Key or value exceeds maximum length of 256 characters");
+    private static final CacheResponse SUCCESS_PUT_RESPONSE = createSuccessResponse();
+    private static final CacheResponse ERROR_NOT_FOUND_RESPONSE = createNotFoundResponse();
+    
+    private final ConcurrentHashMap<String, CacheResponse> responseCache = new ConcurrentHashMap<>(1024);
 
     @Autowired
     public CacheController(CacheService cacheService) {
         this.cacheService = cacheService;
+    }
+
+    private static CacheResponse createSuccessResponse() {
+        CacheResponse response = new CacheResponse();
+        response.setStatus("OK");
+        response.setMessage("Key inserted/updated successfully.");
+        return response;
+    }
+    
+    private static CacheResponse createNotFoundResponse() {
+        CacheResponse response = new CacheResponse();
+        response.setStatus("ERROR");
+        response.setMessage("Key not found.");
+        return response;
     }
 
     @PostMapping("/put")
@@ -36,11 +52,11 @@ public class CacheController {
                 return ResponseEntity.ok(SUCCESS_PUT_RESPONSE);
             } else {
                 return ResponseEntity.badRequest()
-                        .body(INVALID_KEY_VALUE_RESPONSE);
+                        .body(CacheResponse.error("Key or value exceeds maximum length of 256 characters"));
             }
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
-                    .body(CacheResponse.error("Error processing request: " + e.getMessage()));
+                    .body(CacheResponse.error("Error: " + e.getMessage()));
         }
     }
 
@@ -50,13 +66,39 @@ public class CacheController {
             String value = cacheService.get(key);
             
             if (value != null) {
-                return ResponseEntity.ok(CacheResponse.success(key, value));
+                return ResponseEntity.ok(responseCache.computeIfAbsent(
+                    key + ":" + value,
+                    k -> {
+                        CacheResponse response = new CacheResponse();
+                        response.setStatus("OK");
+                        response.setKey(key);
+                        response.setValue(value);
+                        return response;
+                    }
+                ));
             } else {
-                return ResponseEntity.ok(KEY_NOT_FOUND_RESPONSE);
+                return ResponseEntity.ok(ERROR_NOT_FOUND_RESPONSE);
             }
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
-                    .body(CacheResponse.error("Error processing request: " + e.getMessage()));
+                    .body(CacheResponse.error("Error: " + e.getMessage()));
         }
     }
 }
+
+/**
+ * 
+ * mvn clean package
+ * docker build -t key-value-cache .
+ * docker run -p 7171:7171 key-value-cache
+ * locust -f locustfile.py --host=http://localhost:7171
+ * 
+ * 
+ * mvn clean package
+ * docker build -t key-value-cache:1.0.0 .
+ * docker tag key-value-cache:1.0.0 yourusername/key-value-cache:1.0.0
+ * docker login
+ * docker push yourusername/key-value-cache:1.0.0
+ * yourusername/key-value-cache:1.0.0
+ * 
+ */
