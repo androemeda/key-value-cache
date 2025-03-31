@@ -2,25 +2,66 @@
 
 An in-memory Key-Value Cache service that implements basic operations like put(key, value) and get(key).
 
-## Design Choices and Optimizations
-
-1. **LRU Cache Implementation**: Used a LinkedHashMap with access-order to implement an LRU (Least Recently Used) eviction policy, ensuring that less recently used entries are removed first when the cache size limit is reached.
-
-2. **Memory Management**: The service monitors heap memory usage and automatically evicts cache entries when memory usage exceeds a configurable threshold (default: 70%). This prevents the service from running out of memory.
-
-3. **Thread Safety**: Used a ReadWriteLock to ensure thread safety while maintaining high throughput. Read operations don't block each other, only write operations do.
-
-4. **Configurable Parameters**: Key cache parameters can be configured via application properties:
-   - `cache.max.entries`: Maximum number of entries allowed in the cache
-   - `cache.memory.threshold`: Memory usage threshold percentage for triggering eviction
-   - `cache.memory.check.frequency`: How often to check memory usage (in number of operations)
-
-5. **Input Validation**: The service validates that keys and values don't exceed the maximum length of 256 characters.
-
 ## Building the Docker Image
+
+clone repo:
+```bash
+git clone git@github.com:androemeda/key-value-cache.git
+cd key-value-cache
+```
+
+Build with Maven:
+```bash
+mvn clean package
+```
 
 To build the Docker image, run:
 
 ```bash
-mvn clean package
-docker build -t key-value-cache .
+docker build -t key-value-cache:1.0.0 .
+```
+
+Running the Application
+```bash
+docker run -p 7171:7171 key-value-cache:1.0.0
+```
+
+Using Docker Hub Image
+Pull the pre-built image:
+```bash
+docker pull kartik271/key-value-cache:1.0.0
+docker run -p 7171:7171 kartik271/key-value-cache:1.0.0
+```
+
+For AMD64 systems specifically:
+```bash
+docker pull kartik271/key-value-cache:1.0.0-amd64
+docker run -p 7171:7171 kartik271/key-value-cache:1.0.0-amd64
+```
+
+### Running the Docker Container
+To run the Docker container:
+
+```bash
+docker run -p 7171:7171 key-value-cache
+```
+
+For AMD64 systems specifically:
+
+```bash
+docker pull kartik271/key-value-cache:1.0.0-amd64
+docker run -p 7171:7171 kartik271/key-value-cache:1.0.0-amd64
+```
+
+
+## Design Choices and Optimizations
+
+1. **Cache Segmentation**: Split cache into 16 independent segments based on key hash to reduce contention and improve throughput.
+
+2. **Concurrency Optimizations**:  Used ConcurrentHashMap with optimized parameters and eliminated explicit locks for high-concurrency performance.
+
+3. **Memory Efficiency**: Pre-allocated data structures, enforced string length limits, and configured JVM for optimal memory usage on 2GB instances.
+
+4. **Response Time Improvements**: Pre-created common response objects, implemented fast-path validation, and cached responses to avoid object creation.
+
+5. **GC Tuning**: Configured G1GC with low pause times, set heap size boundaries, and enabled string deduplication to reduce latency spikes.
